@@ -9,7 +9,93 @@ import sys
 py=sys.modules['qgb.py']
 from kicad import *
 import kicad
-# from q2026 import round_trapezoid
+def jk_BD6A24_2512(W=100, zip=0):
+    # ***<module>.jk_BD6A24_2512: Failure: Different bytecode
+    kicad_mod = new_kicad_mod(w=W, h=W)
+    def add_2512_pad(x, y, angle=0):
+        pad_w, pad_h, center_dist = (1.9, 2, 4.0)
+        rad = math.radians(angle)
+        cos_a, sin_a = (math.cos(rad), math.sin(rad))
+        def rot(p):
+            return (p[0] * cos_a - p[1] * sin_a, p[0] * sin_a + p[1] * cos_a)
+        left_rel = (-center_dist / 2, 0)
+        right_rel = (center_dist / 2, 0)
+        left_abs = (x + rot(left_rel)[0], y + rot(left_rel)[1])
+        right_abs = (x + rot(right_rel)[0], y + rot(right_rel)[1])
+        pad1 = Pad(number='1', type=Pad.TYPE_SMT, shape=Pad.SHAPE_RECT, at=left_abs, size=[pad_w, pad_h], rotation=angle, layers=['F.Cu', 'F.Mask', 'F.Paste'])
+        pad2 = Pad(number='2', type=Pad.TYPE_SMT, shape=Pad.SHAPE_RECT, at=right_abs, size=[pad_w, pad_h], rotation=angle, layers=['F.Cu', 'F.Mask', 'F.Paste'])
+        kicad_mod.append(pad1)
+        kicad_mod.append(pad2)
+    rectline_center(kicad_mod, W / 2, W / 2, w=W, h=W, crosshair=1)
+    def add_pad_pair(kmod, x, y, size, pin_num, drill_screw, smt_dy=(-0.6)):
+        kmod.append(Pad(number=pin_num, type=Pad.TYPE_THT, shape=Pad.SHAPE_RECT, at=[x, y], size=size, drill=drill_screw, layers=Pad.LAYERS_THT))
+        kmod.append(Pad(number=pin_num, type=Pad.TYPE_SMT, shape=Pad.SHAPE_RECT, at=[x, y + smt_dy], size=[size[0], 1.5], drill=0, layers=['F.Cu']))
+    def p15_11(x0=W / 2 - 26.0, y0=11, smt_dy=(-0.6)):
+        rxy = []
+        size = [1, 1]
+        drill_screw = 0.9
+        groups = [(x0, 15, 0), (x0 + 28.0 + 4, 11, 15)]
+        dln = {}
+        for start_x, pin_count, start_num in groups:
+            for i in range(pin_count):
+                n = start_num + i
+                x = start_x + 2.0 * i
+                add_pad_pair(kicad_mod, x, y0, size, f'{n}', drill_screw=drill_screw, smt_dy=smt_dy)
+                rxy.append((x, y0))
+        return rxy
+    yb = 30
+    for i in centered_range(26, center=50, pitch=3.7):
+        add_pad_pair(kicad_mod, i, yb, [1, 1], f'{i + 1}', drill_screw=1)
+    r11 = p15_11(x0=W / 2 - 26.0, y0=yb + 10, smt_dy=(-0.6))
+    xs = centered_range(24, center=50, pitch=4)
+    x24 = centered_range(14, center=29, pitch=2.4) + centered_range(10, center=65, pitch=2.4)
+    x3 = centered_range(14, center=29, pitch=3) + centered_range(10, center=65, pitch=3)
+    y9 = 14
+    for i in range(24):
+        y = yb + 10 + y9
+        add_2512_pad(xs[i], y, angle=90)
+    r29 = p15_11(x0=W / 2 - 26.0, y0=yb + 10 + y9 + y9, smt_dy=0.6)
+    return write_kicad_mod(kicad_mod, zip=zip)
+def naoh(w=100, pitch=1.15, margin=1, D=92, zip=0):
+    kicad_mod = new_kicad_mod(w=w, h=w, p=pitch, m=margin)
+    xz, yz = (w / 2, w / 2)
+    n = 0
+    x = margin
+    while x <= w - margin:
+        y = margin
+        while y <= w - margin:
+            dist = ((x - xz) ** 2 + (y - yz) ** 2) ** 0.5
+            if dist < D / 2:
+                non_plated_hole(kicad_mod, x, y, 0.4)
+                n += 1
+            y += pitch
+        x += pitch
+    kicad_mod.name += f'n={n}'
+    text(kicad_mod, f'n={n}', at=[(-10), 50], size=[3, 2.5], layers='F.Cmts.User')
+    if D > 100:
+        return write_kicad_mod(kicad_mod, zip=zip)
+    else:
+        circle_filled(kicad_mod, xz, yz, D + 2, layers=['F.Cu', 'F.Mask'])
+        return write_kicad_mod(kicad_mod, zip=zip)
+def laser_array(w=100, zip=0):
+    kicad_mod = new_kicad_mod(w=w, h=w)
+    dx, pin_pitch = (14, 2.54)
+    nx, ny_pins = (int(w // dx), 40)
+    y_start = (w - (ny_pins - 1) * pin_pitch) / 2
+    for i in range(nx):
+        xi = w / 2 + (i - (nx - 1) / 2) * dx
+        y_end = y_start + (ny_pins - 1) * pin_pitch
+        for j in range(ny_pins):
+            yi = y_start + j * pin_pitch
+            plated_hole(kicad_mod, xi + 2.54, yi, 0.9)
+            plated_hole(kicad_mod, xi - 2.54, yi, 0.9)
+            if j % 3 == 0:
+                plated_hole(kicad_mod, xi, yi, 1)
+                rectline_center(kicad_mod, xi, yi + 2, w=14, h=7, crosshair=1)
+        multi_dot_line(kicad_mod, [(xi + 2.54, y_start), (xi + 2.54, y_end)], width=1.2, layers='F.Cu', segments=10)
+        multi_dot_line(kicad_mod, [(xi - 2.54, y_start), (xi - 2.54, y_end)], width=1.2, layers='B.Cu', segments=10)
+    return write_kicad_mod(kicad_mod, zip=zip)
+    
 def laser_array(w=100, zip=0):
     kicad_mod = new_kicad_mod(w=w, h=w)
     dx, pin_pitch = 14, 2.54
@@ -1338,41 +1424,74 @@ def m4_14(kicad_mod=None, x=0, y=50,angle=0,base_hole_x=5.5/2,hole=3):
     rectline_center(kicad_mod, *rect_pos, 14, angle=angle)  # 14mm正方形
     if write_kicad: return write_kicad_mod(kicad_mod, zip=1)  # 返回模块文件
     return kicad_mod  # 返回模块对象
-   
-def mgn12c_bottom_m6(w=100,zip=0):
-    kicad_mod = new_kicad_mod(w=w, h=w,)
-    wm=34.7
-    hm=27
-    dx=3.85+2
-    ka=dict(up_rail=2.5)
-    mgn12c_block(kicad_mod,wm/2-dx,hm/2,**ka)
-    mgn12c_block(kicad_mod,100-wm/2+dx,hm/2,angle=180,**ka)
-    mgn12c_block(kicad_mod,wm/2-dx,100-hm/2,**ka)
-    mgn12c_block(kicad_mod,100-wm/2+dx,100-hm/2,angle=180,**ka)
-    
-    dcube=5#5.5/2
-    dy=25/2
-    non_plated_hole(kicad_mod,dcube,50+dy,2.9)
-    non_plated_hole(kicad_mod,dcube,50-dy,2.9)
-    non_plated_hole(kicad_mod,100-dcube,50+dy,2.9)
-    non_plated_hole(kicad_mod,100-dcube,50-dy,2.9)
-    
-    
-    n=4
-    W, x0, y0 = 100, 50, 50
-    R = 35 #24.7485 / 0.7071 #R=r/sin(pi/4)zs
-    
-    # kicad_mod.append(Circle(center=[x0, y0], radius=R-24.7485, layer='F.SilkS', width=0.15)) #Ri=R-rzs
-    circle(kicad_mod, x0, y0, d=2*R,crosshair=1) #Di2=D-10zs
+def mgn12c_bottom_gear(w=100, zip=0):
+    kicad_mod = new_kicad_mod(w=w, h=w)
+    wm = 34.7
+    hm = 27
+    dx = 5.85
+    ka = dict(up_rail=2.5)
+    mgn12c_block(kicad_mod, wm / 2 - dx, hm / 2, **ka)
+    mgn12c_block(kicad_mod, 100 - wm / 2 + dx, hm / 2, angle=180, **ka)
+    mgn12c_block(kicad_mod, wm / 2 - dx, 100 - hm / 2, **ka)
+    mgn12c_block(kicad_mod, 100 - wm / 2 + dx, 100 - hm / 2, angle=180, **ka)
+    dcube = 5
+    dy = 12.5
+    non_plated_hole(kicad_mod, dcube, 50 + dy, 2.9)
+    rectline_center(kicad_mod, dcube, 50 + dy, 10)
+    non_plated_hole(kicad_mod, dcube, 50 - dy, 2.9)
+    rectline_center(kicad_mod, dcube, 50 - dy, 10)
+    non_plated_hole(kicad_mod, 100 - dcube, 50 + dy, 2.9)
+    rectline_center(kicad_mod, 100 - dcube, 50 + dy, 10)
+    non_plated_hole(kicad_mod, 100 - dcube, 50 - dy, 2.9)
+    rectline_center(kicad_mod, 100 - dcube, 50 - dy, 10)
+    n = 4
+    W, x0, y0 = (100, 50, 50)
+    R = 35
+    non_plated_hole(kicad_mod, x0, y0, 7.9)
+    circle(kicad_mod, x0, y0, d=2 * R, crosshair=0, layers=glayers_Cmts)
     for i in range(4):
-        angle = i * 1.5708 #theta=2*pi/4zs
-        x, y = x0 + R * math.cos(angle), y0 + R * math.sin(angle)
-        circle(kicad_mod, x, y, d=24.7485) #r=d/2zs
-        non_plated_hole(kicad_mod, x, y, 16.9) #hole=5.9zs
-        text(kicad_mod, f'{i}', at=[x-6, y], size=[2, 1.6], layers=glayers_silk)
-    text(kicad_mod, f'n=4,d=49.5,D={2*R}', at=[x-40, -10], size=[4, 3], layers=glayers_Cmts)
-    
-    return write_kicad_mod(kicad_mod,zip=zip)
+        angle = i * (2 * math.pi / 4)
+        x, y = (x0 + R * math.cos(angle), y0 + R * math.sin(angle))
+        circle(kicad_mod, x, y, d=17)
+        non_plated_hole(kicad_mod, x, y, 5.9)
+        text(kicad_mod, f'{i}', at=[x - 6, y], size=[2, 1.6], layers=glayers_silk)
+    x0 = y0 = w / 2
+    return write_kicad_mod(kicad_mod, zip=zip)
+   
+def mgn12c_bottom_m6(w=100, hole=43, bear_hole=5.9, zip=0):
+    kicad_mod = new_kicad_mod(w=w, h=w, d=hole, b=bear_hole)
+    wm = 34.7
+    hm = 27
+    dx = 5.85
+    ka = dict(up_rail=2.5)
+    mgn12c_block(kicad_mod, wm / 2 - dx, hm / 2, **ka)
+    mgn12c_block(kicad_mod, 100 - wm / 2 + dx, hm / 2, angle=180, **ka)
+    mgn12c_block(kicad_mod, wm / 2 - dx, 100 - hm / 2, **ka)
+    mgn12c_block(kicad_mod, 100 - wm / 2 + dx, 100 - hm / 2, angle=180, **ka)
+    dcube = 5
+    dy = 12.5
+    non_plated_hole(kicad_mod, dcube, 50 + dy, 2.9)
+    rectline_center(kicad_mod, 7, 50, 14)
+    non_plated_hole(kicad_mod, dcube, 50 - dy, 2.9)
+    non_plated_hole(kicad_mod, 100 - dcube, 50 + dy, 2.9)
+    non_plated_hole(kicad_mod, 100 - dcube, 50 - dy, 2.9)
+    n = 4
+    W, x0, y0 = (100, 50, 50)
+    R = 35
+    circle(kicad_mod, x0, y0, d=2 * R, crosshair=1)
+    non_plated_hole(kicad_mod, x0, y0, hole)
+    for i in range(4):
+        angle = i * 1.5708
+        x, y = (x0 + R * math.cos(angle), y0 + R * math.sin(angle))
+        circle(kicad_mod, x, y, d=17)
+        if i == 0:
+            circle(kicad_mod, x, y, d=25)
+        non_plated_hole(kicad_mod, x, y, bear_hole)
+        text(kicad_mod, f'{i}', at=[x - 6, y], size=[2, 1.6], layers=glayers_silk)
+    text(kicad_mod, f'n=4,d=49.5,D={2 * R}', at=[x - 40, (-10)], size=[4, 3], layers=glayers_Cmts)
+    x, y = (x0 + R, y0)
+    step_motor_42(kicad_mod, *rotate_point(x + 12.5, y, 0, x, y), d=5, angle=45)
+    return write_kicad_mod(kicad_mod, zip=zip)
    
    
 def mgn12c_z_board_m6(n=4,**ka):
@@ -1467,6 +1586,65 @@ def mgn12c_z_board(n=10,d=24.12,hex_a=4.45,hole=3,bear_hole=8.9,angle_offset=18,
     rectline_center(kicad_mod,100-5,100-hm/2,hd,hm,layers=glayers_edge_pure)
     
     return write_kicad_mod(kicad_mod, zip=zip) # 返回模块
+def mgn12c_z_board_m6(n=4, **ka):
+    g2 = 1.4142135623730951
+    return mgn12c_z_board(n=4, d=35 * g2, hex_a=0, hole=5.9, angle_offset=0, **ka)
+def mgn12c_z_board(n=10, d=24.12, hex_a=4.45, hole=3, bear_hole=8.9, angle_offset=18, zip=0):
+    W = 100
+    kicad_mod = new_kicad_mod(w=W, h=W, n=n, d=d)
+    r = d / 2
+    r2 = 5
+    R = r / math.sin(math.pi / n)
+    D = 2 * R
+    Ri = R - r
+    Ri2 = R - r2
+    Di2 = D - r2 * 2
+    if n == 0:
+        return
+    else:
+        x0, y0 = (W / 2, W / 2)
+        non_plated_hole(kicad_mod, x0, y0, 9.9)
+        xd = 14.5
+        non_plated_hole(kicad_mod, x0 - xd, y0, 4)
+        non_plated_hole(kicad_mod, x0 + xd, y0, 4)
+        non_plated_hole(kicad_mod, x0, y0, 17.4)
+        kicad_mod.append(Circle(center=[x0, y0], radius=R, layer='F.SilkS', width=0.15))
+        kicad_mod.append(Circle(center=[x0, y0], radius=Ri, layer='F.SilkS', width=0.15))
+        circle(kicad_mod, x0, y0, d=Di2)
+        theta = 2 * math.pi / n
+        for i in range(n):
+            angle = i * theta + math.radians(angle_offset)
+            x = x0 + R * math.cos(angle)
+            y = y0 + R * math.sin(angle)
+            circle(kicad_mod, x, y, d=r)
+            if hex_a:
+                hex_nut_hole(kicad_mod, x, y, hex_a, layers=glayers_edge_pure)
+            non_plated_hole(kicad_mod, x, y, hole)
+            text(kicad_mod, f'{i}', at=[x - 6, y], size=[2, 1.6], layers=glayers_silk)
+        text(kicad_mod, f'n={n},d={d},D={D},Di={Ri * 2},Di2={Di2}', at=[x - 40, (-10)], size=[4, 3], layers=glayers_Cmts)
+        crosshair(kicad_mod, x0, y0, w=W, h=W)
+        wm = 34.7
+        hm = 27
+        dcube = 5
+        dy = 12.5
+        non_plated_hole(kicad_mod, dcube, 50 + dy, 2.9)
+        non_plated_hole(kicad_mod, dcube, 50 - dy, 2.9)
+        non_plated_hole(kicad_mod, 100 - dcube, 50 + dy, 2.9)
+        non_plated_hole(kicad_mod, 100 - dcube, 50 - dy, 2.9)
+        non_plated_hole(kicad_mod, 50 + dy, dcube, 2.9)
+        non_plated_hole(kicad_mod, 50 - dy, dcube, 2.9)
+        non_plated_hole(kicad_mod, 50 + dy, 100 - dcube, 2.9)
+        non_plated_hole(kicad_mod, 50 - dy, 100 - dcube, 2.9)
+        rectline_center(kicad_mod, 9, hm / 2, 8, 12, layers=glayers_edge_pure)
+        rectline_center(kicad_mod, 9, 100 - hm / 2, 8, 12, layers=glayers_edge_pure)
+        rectline_center(kicad_mod, 91, hm / 2, 8, 12, layers=glayers_edge_pure)
+        rectline_center(kicad_mod, 91, 100 - hm / 2, 8, 12, layers=glayers_edge_pure)
+        hd = 10.1
+        rectline_center(kicad_mod, 5, hm / 2, hd, hm, layers=glayers_edge_pure)
+        rectline_center(kicad_mod, 95, hm / 2, hd, hm, layers=glayers_edge_pure)
+        rectline_center(kicad_mod, 5, 100 - hm / 2, hd, hm, layers=glayers_edge_pure)
+        rectline_center(kicad_mod, 95, 100 - hm / 2, hd, hm, layers=glayers_edge_pure)
+        return write_kicad_mod(kicad_mod, zip=zip)
 
 def mgn12c_block_up_rail_x(w=100,h=32.2,zip=0):
     ''' 拼板 '''
